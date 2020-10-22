@@ -1,12 +1,12 @@
 module.exports = async function (a, b) {
-    await sleep(3);
+    await sleep(500);
     return a + b;
 };
 
-function sleep(seconds) {
+function sleep(ms) {
     return new Promise((resolve, reject) => {
         setTimeout(() => {
             resolve();
-        }, seconds * 1e3);
+        }, ms);
     })
 }
