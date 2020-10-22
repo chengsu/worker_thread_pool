@@ -2,70 +2,70 @@ import {Worker} from "worker_threads";
 import * as os from "os";
 
 /**
- * 默认最大线程数，当线程数为cpu核数时性能最好
+ * default max thread pool size, normally when pool size equals cpu core number gains best performance
  */
 const DEFAULT_MAX_THREADS = os.cpus().length;
 
 /**
- * 线程池选项
+ * worker thread option
  */
 interface WorkerThreadPoolOption {
     /**
-     * 初始线程数
+     * init pool size
      */
     size: number;
     /**
-     * 最小线程数
+     * min pool size
      */
     min: number;
     /**
-     * 最大线程数
+     * max pool size
      */
     max: number;
     /**
-     * 等待队列长度
+     * max queue size, when all threads are busy, tasks can be queued in the internal pool queue.
      */
     maxQueueSize: number;
     /**
-     * 闲置超时
+     * idle timeout, when worker idle for a reasonable time (in ms), it will be terminated.
      */
     idleTimeout: number;
 }
 
 /**
- * 线程池内线程信息
+ * woker thread info
  */
 interface WorkerInfo {
     /**
-     * 创建时间
+     * create timestamp
      */
     createdAt: number;
     /**
-     * 闲置时间
+     * idle since timestamp
      */
     idleSince: number;
     /**
-     * 工作线程
+     * worker thread
      */
     worker: Worker;
     /**
-     * 可用标志
+     * is avaliable, means to accept new work
      */
     avaliable: boolean;
     /**
-     * 线程id
+     * thread id
      */
     threadId: number;
     /**
-     * 回调
+     * call back, accept an optional error and result
      */
     resolve: (res: [Error | null, any]) => void;
 }
 
 /**
- * 无可用线程错误
+ * no thread avaliable error
  */
-class NoThreadAvaliableError extends Error {
+export class NoThreadAvaliableError extends Error {
     constructor(message = "no thread avaliable") {
         super(message);
     }
@@ -73,19 +73,30 @@ class NoThreadAvaliableError extends Error {
 
 export class WorkerThreadPool {
     /**
-     * 选项
+     * option
      */
     private option: WorkerThreadPoolOption;
     /**
-     * 线程池
+     * worker thread pool
      */
     private pool: WorkerInfo[];
     /**
-     * 定时清理闲置线程
+     * interval to terminate idle thread
      */
     private interval: NodeJS.Timeout;
+    /**
+     * internal queue
+     */
     private queue: { resolve: any, reject: any, script: string, argv: any[] }[];
 
+    /**
+     * constructor
+     * @param size
+     * @param min
+     * @param max
+     * @param idleTimeout
+     * @param maxQueueSize
+     */
     constructor({
                     size = 3,
                     min = 0,
@@ -111,6 +122,9 @@ export class WorkerThreadPool {
         }, 1e3);
     }
 
+    /**
+     * close thread pool
+     */
     close() {
         this.pool.forEach(e => {
             e.worker.removeAllListeners();
@@ -119,6 +133,9 @@ export class WorkerThreadPool {
         clearInterval(this.interval);
     }
 
+    /**
+     * create thread pool
+     */
     private createWorker(): WorkerInfo {
         const worker = new Worker('./dist/worker.js');
         const now = Date.now();
@@ -146,6 +163,10 @@ export class WorkerThreadPool {
         return w;
     }
 
+    /**
+     * get task from internal queue or free the thread
+     * @param w
+     */
     private dequeueOrfreeWorker(w: WorkerInfo) {
         const next = this.queue.shift();
         if (next) {
@@ -157,6 +178,9 @@ export class WorkerThreadPool {
         }
     }
 
+    /**
+     * get thread from pool
+     */
     private getWorker() {
         let w = this.pool.find(e => e.avaliable);
         if (!w) {
@@ -171,11 +195,27 @@ export class WorkerThreadPool {
         return w;
     }
 
+    /**
+     * run task in worker thread virtually
+     * @param resolve
+     * @param reject
+     * @param w
+     * @param script
+     * @param argv
+     * @private
+     */
     private _exec(resolve: any, reject: any, w: WorkerInfo, script: string, argv: any[]) {
         w.resolve = resolve;
         w.worker.postMessage([script, argv]);
     }
 
+    /**
+     * run task in worker thread，
+     * if no thread avaliable, task will be queued,
+     * if queue is full, an error will be throwed.
+     * @param script
+     * @param argv
+     */
     async exec([script, argv]: [string, any[]]): Promise<[Error | null, any]> {
         const w = this.getWorker();
         if (!w) {
