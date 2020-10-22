@@ -10,7 +10,7 @@ async function main() {
             const a = Math.floor(Math.random() * 10);
             const b = Math.floor(Math.random() * 10);
             const script = __dirname + "/add.js";
-            const [err, res] = await pool.exec({script, data: {a, b}});
+            const [err, res] = await pool.exec([script, [a, b]]);
             if (err) {
                 return console.error(err);
             }
@@ -22,7 +22,7 @@ async function main() {
         const a = Math.floor(Math.random() * 10);
         const b = Math.floor(Math.random() * 10);
         const script = __dirname + "/add.promise.js";
-        const [err, res] = await pool.exec({script, data: {a, b}});
+        const [err, res] = await pool.exec([script, [a, b]]);
         if (err) {
             return console.error(err);
         }
