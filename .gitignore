@@ -1,4 +1,4 @@
 /.idea/
-/worker_thread_pool.iml
+*.iml
 /dist/
 /node_modules/
