@@ -84,7 +84,7 @@ export class WorkerThreadPool {
      * 定时清理闲置线程
      */
     private interval: NodeJS.Timeout;
-    private queue: { resolve: any, reject: any, script: string, data: any }[];
+    private queue: { resolve: any, reject: any, script: string, argv: any[] }[];
 
     constructor({
                     size = 3,
@@ -149,8 +149,8 @@ export class WorkerThreadPool {
     private dequeueOrfreeWorker(w: WorkerInfo) {
         const next = this.queue.shift();
         if (next) {
-            const {resolve, reject, script, data} = next;
-            this._exec(resolve, reject, w, script, data);
+            const {resolve, reject, script, argv} = next;
+            this._exec(resolve, reject, w, script, argv);
         } else {
             w.avaliable = true;
             w.idleSince = Date.now();
@@ -171,12 +171,12 @@ export class WorkerThreadPool {
         return w;
     }
 
-    private _exec(resolve: any, reject: any, w: WorkerInfo, script: string, data: any) {
+    private _exec(resolve: any, reject: any, w: WorkerInfo, script: string, argv: any[]) {
         w.resolve = resolve;
-        w.worker.postMessage({script, data});
+        w.worker.postMessage([script, argv]);
     }
 
-    async exec({script, data}: { script: string, data: any }): Promise<[Error | null, any]> {
+    async exec([script, argv]: [string, any[]]): Promise<[Error | null, any]> {
         const w = this.getWorker();
         if (!w) {
             if (this.queue.length < this.option.maxQueueSize) {
@@ -185,7 +185,7 @@ export class WorkerThreadPool {
                         resolve,
                         reject,
                         script,
-                        data,
+                        argv,
                     });
                 });
             } else {
@@ -193,7 +193,7 @@ export class WorkerThreadPool {
             }
         }
         return new Promise((resolve, reject) => {
-            this._exec(resolve, reject, w, script, data);
+            this._exec(resolve, reject, w, script, argv);
         });
     }
 }
